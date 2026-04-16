@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>GonioPro - Evaluación Clínica</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=landscape" />
+  <link rel="stylesheet" href="styles.css" />
+  
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@0.0.5/dist/pose-detection.min.js"></script>
+</head>
+<body>
+  <div id="orientation-warning">
+    <div class="rotate-icon">🔄</div>
+    <p>Gira tu dispositivo en horizontal para realizar la evaluación.</p>
+  </div>
+
+  <div id="app">
+    <video id="video" playsinline autoplay muted class="mirror-mode"></video>
+    <canvas id="overlay"></canvas>
+    <div class="gradient-bg"></div>
+
+    <div id="start-screen" class="screen active">
+      <div class="logo">GonioPro</div>
+      <p class="subtitle">Goniómetro Digital Biométrico</p>
+      <button id="start-btn" class="btn primary pulse-anim">Iniciar Sistema</button>
+    </div>
+
+    <div id="dashboard-screen" class="screen">
+      <div class="dashboard-container">
+        <h2>Gestión de Pacientes</h2>
+        <div class="patient-controls">
+          <input type="text" id="patient-name" placeholder="Nombre del Paciente..." autocomplete="off">
+          <button id="new-session-btn" class="btn primary small">Nueva Sesión</button>
+        </div>
+        <div class="history-panel">
+          <h3>Historial Clínico</h3>
+          <input type="text" id="search-history" placeholder="🔍 Buscar paciente por nombre..." class="search-input mt-2">
+          <ul id="patient-list" class="patient-list">
+            </ul>
+        </div>
+        <button id="dash-back-menu-btn" class="btn secondary full-width mt-4" style="display:none;">Volver al Menú Principal</button>
+      </div>
+    </div>
+
+    <div id="main-menu-screen" class="screen">
+      <div class="dashboard-container text-center">
+        <h2>Paciente: <span id="menu-patient-name" style="color:#38bdf8;">--</span></h2>
+        <p class="subtitle mt-2">Selecciona la acción a realizar</p>
+        
+        <div class="action-buttons mt-4 menu-grid">
+          <button id="menu-gonio-btn" class="btn primary full-width">📏 Goniómetro (Medir)</button>
+          <button id="menu-history-btn" class="btn secondary full-width">🗂️ Ver Historial General</button>
+          <button id="menu-form-btn" class="btn secondary full-width">📝 Formulario Clínico</button>
+        </div>
+        <button id="menu-exit-btn" class="btn secondary small mt-4" style="border: none; background: transparent; color: #ef4444;">← Cambiar de paciente</button>
+      </div>
+    </div>
+
+    <div id="form-screen" class="screen">
+      <div class="dashboard-container">
+        <h2>Formulario Clínico</h2>
+        <p class="mt-2 text-gray">Datos para: <span id="form-patient-name" style="color:#38bdf8;">--</span></p>
+        
+        <div class="form-placeholder mt-4">
+            <p style="text-align: center; color: #64748b; padding: 2rem; border: 2px dashed #334155; border-radius: 8px;">
+                Aquí irá el formulario (Espacio de trabajo listo)
+            </p>
+        </div>
+
+        <button id="back-to-menu-btn" class="btn secondary full-width mt-4">Volver al Menú</button>
+      </div>
+    </div>
+
+    <div id="camera-screen" class="screen">
+      <h2>Conexión Visual</h2>
+      <p>Coloca el dispositivo estable a la altura del pecho del paciente.</p>
+      <button id="camera-btn" class="btn primary">Activar Cámara e IA</button>
+      <p id="camera-status" class="status"></p>
+    </div>
+
+    <div id="physio-screen" class="screen">
+      <div class="physio-header">
+        <div>
+          <h2>Evaluación: <span id="current-patient-name" style="color:#38bdf8;">--</span></h2>
+          <p id="current-mode-label" class="mode-badge">Modo: Frontal (Bilateral)</p>
+        </div>
+        <button id="settings-btn" class="btn secondary icon-btn">⚙️ Ajustes</button>
+      </div>
+      
+      <div class="physio-panel">
+        <p id="physio-instruction" class="hint-text">Sitúate en el centro. Evaluando ambos brazos.</p>
+        
+        <p id="rep-counter" class="status mt-2" style="font-size: 1.2rem; color: #10b981; margin-top: 0.5rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">Repeticiones: 0 / 3</p>
+        
+        <div class="dual-data-container">
+            <div class="arm-data">
+                <h3>Brazo Izquierdo</h3>
+                <div class="angle-display">Actual: <span id="current-angle-l">0°</span></div>
+                <div class="angle-display max">Máx: <span id="max-angle-l">0°</span></div>
+            </div>
+            <div class="arm-data">
+                <h3>Brazo Derecho</h3>
+                <div class="angle-display">Actual: <span id="current-angle-r">0°</span></div>
+                <div class="angle-display max">Máx: <span id="max-angle-r">0°</span></div>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+          <button id="save-data-btn" class="btn primary full-width mt-4">Guardar Manualmente</button>
+          <button id="finish-btn" class="btn secondary full-width mt-2">Volver al Menú Principal</button>
+        </div>
+      </div>
+      
+      <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3>Ajustes de Evaluación</h3>
+          <div class="mode-toggles mt-4">
+              <button id="btn-frontal" class="btn small active">Frontal (2 Brazos)</button>
+              <button id="btn-lateral" class="btn small secondary">Lateral (1 Brazo)</button>
+          </div>
+          <p class="hint-text mt-4">¿Errores de detección?</p>
+          <button id="reset-skeleton-btn" class="btn secondary full-width" style="color:#ef4444; border-color:#ef4444;">🔄 Restablecer Esqueleto (Reinicio Seguro)</button>
+          <button id="close-settings-btn" class="btn primary full-width mt-4">Cerrar Ajustes</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast-notification" class="toast">
+        <span id="toast-title"></span>
+        <span id="toast-subtitle" class="toast-highlight"></span>
+    </div>
+
+    <audio id="sfx-good" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
+    <audio id="sfx-level" src="https://actions.google.com/sounds/v1/cartoon/magic_chime.ogg" preload="auto"></audio>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
